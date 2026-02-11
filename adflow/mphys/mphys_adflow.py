@@ -441,6 +441,9 @@ class ADflowSolver(ImplicitComponent):
         # the converged solutions are written by the adflow functionals group
         self.solution_counter = 0
 
+        # counter for fatal fails; optimization is terminated (AnalysisError) when it reaches 4
+        self.fatal_fail_count = 0
+
         # flag to keep track if the current solution started from a clean restart,
         # or it was restarted from the previous converged state.
         self.cleanRestart = True
@@ -524,12 +527,18 @@ class ADflowSolver(ImplicitComponent):
             fail_name = f"{self.ap.name}_analysis_fail"
 
             if ap.fatalFail:
+                self.fatal_fail_count += 1
                 if self.comm.rank == 0:
                     print("###############################################################")
-                    print("# Solve Fatal Fail. Analysis Error")
+                    print("# Solve Fatal Fail. Analysis Error (count %d of 4)" % self.fatal_fail_count)
                     print("###############################################################")
 
-                raise AnalysisError("ADFLOW Solver Fatal Fail")
+                if self.fatal_fail_count >= 4:
+                    if self.comm.rank == 0:
+                        print("# Terminating optimization after 4 fatal failures.")
+                        print("###############################################################")
+                    raise AnalysisError("ADFLOW Solver Fatal Fail - terminating after 4 fatal failures")
+                # raise AnalysisError("ADFLOW Solver Fatal Fail")
 
             if ap.solveFailed:
                 if self.restart_failed_analysis:  # the mesh was fine, but it didn't converge
