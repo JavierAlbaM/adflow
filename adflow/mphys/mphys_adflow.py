@@ -532,13 +532,14 @@ class ADflowSolver(ImplicitComponent):
                     print("###############################################################")
                     print("# Solve Fatal Fail. Analysis Error (count %d of 4)" % self.fatal_fail_count)
                     print("###############################################################")
+                
+                raise AnalysisError("ADFLOW Solver Fatal Fail")
 
                 if self.fatal_fail_count >= 4:
                     if self.comm.rank == 0:
                         print("# Terminating optimization after 4 fatal failures.")
                         print("###############################################################")
-                    raise AnalysisError("ADFLOW Solver Fatal Fail - terminating after 4 fatal failures")
-                # raise AnalysisError("ADFLOW Solver Fatal Fail")
+                    raise ValueError("ADFLOW Solver Fatal Fail - terminating after 4 fatal failures")
 
             if ap.solveFailed:
                 if self.restart_failed_analysis:  # the mesh was fine, but it didn't converge
