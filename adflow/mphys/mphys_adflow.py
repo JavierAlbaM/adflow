@@ -533,13 +533,14 @@ class ADflowSolver(ImplicitComponent):
                     print("# Solve Fatal Fail. Analysis Error (count %d of 4)" % self.fatal_fail_count)
                     print("###############################################################")
                 
-                raise AnalysisError("ADFLOW Solver Fatal Fail")
+                # raise AnalysisError("ADFLOW Solver Fatal Fail")
 
                 if self.fatal_fail_count >= 4:
                     if self.comm.rank == 0:
                         print("# Terminating optimization after 4 fatal failures.")
                         print("###############################################################")
                     raise ValueError("ADFLOW Solver Fatal Fail - terminating after 4 fatal failures")
+                    # exit(1)
 
             if ap.solveFailed:
                 if self.restart_failed_analysis:  # the mesh was fine, but it didn't converge
@@ -1039,24 +1040,42 @@ class ADflowFunctions(ExplicitComponent):
     #     self.mphys_add_funcs(prop_funcs)
 
     def mphys_add_funcs(self, funcs):
-        self.extra_funcs = funcs
 
         # loop over the functions here and create the output
-        for f_name in funcs:
-            # get the function type. this is the first word before the first underscore
-            f_type = f_name.split("_")[0]
+        # If func just has variable names
+        if all(not isinstance(item, list) for item in funcs):
 
-            # check if we have a unit defined for this
-            if f_type in FUNCS_UNITS:
-                units = FUNCS_UNITS[f_type]
-            else:
-                units = None
+            self.extra_funcs = funcs
 
-            # print the function name and units
-            # if self.comm.rank == 0:
-            #     print("%s (%s)" % (f_name, units))
+            for f_name in funcs:
+                # get the function type. this is the first word before the first underscore
+                f_type = f_name.split("_")[0]
 
-            self.add_output(f_name, distributed=False, shape=1, units=units, tags=["mphys_result"])
+                # check if we have a unit defined for this
+                if f_type in FUNCS_UNITS:
+                    units = FUNCS_UNITS[f_type]
+                else:
+                    units = None
+
+                # print the function name and units
+                # if self.comm.rank == 0:
+                #     print("%s (%s)" % (f_name, units))
+
+                self.add_output(f_name, distributed=False, shape=1, units=units, tags=["mphys_result"])
+        
+        # If funcs also has units as a second column
+        elif all(isinstance(item, list) for item in funcs):
+
+            self.extra_funcs = [row[0] for row in funcs]
+
+            for f_name, f_units in funcs:
+                # get the function type. this is the first word before the first underscore
+                f_type = f_name.split("_")[0]
+
+                units = f_units 
+
+                self.add_output(f_name, distributed=False, shape=1, units=units, tags=["mphys_result"])
+
 
     def _get_func_name(self, name):
         return "%s_%s" % (self.ap.name, name.lower())
@@ -1301,14 +1320,21 @@ class ADflowGroup(Group):
             if self.prop_coupling:
                 self.promotes("prop", inputs=[name])
 
-    def mphys_add_prop_funcs(self, prop_funcs):
+    def mphys_add_prop_funcs(self, prop_funcs, units):
         # this is the main routine to enable outputs from the propulsion element
 
-        # call the method of the prop element
-        self.prop.mphys_add_funcs(prop_funcs)
+        if units:
+            # call the method of the prop element
+            self.prop.mphys_add_funcs(prop_funcs)
 
-        # promote these variables to the aero group level
-        self.promotes("prop", outputs=prop_funcs)
+            # promote these variables to the aero group level
+            self.promotes("prop", outputs=[row[0] for row in prop_funcs])
+        else:
+            # call the method of the prop element
+            self.prop.mphys_add_funcs(prop_funcs)
+
+            # promote these variables to the aero group level
+            self.promotes("prop", outputs=prop_funcs)
 
 
 class ADflowMeshGroup(Group):
