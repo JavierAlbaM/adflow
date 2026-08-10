@@ -527,20 +527,15 @@ class ADflowSolver(ImplicitComponent):
             fail_name = f"{self.ap.name}_analysis_fail"
 
             if ap.fatalFail:
-                self.fatal_fail_count += 1
                 if self.comm.rank == 0:
                     print("###############################################################")
-                    print("# Solve Fatal Fail. Analysis Error (count %d of 4)" % self.fatal_fail_count)
+                    print("# Solve Fatal Fail. Analysis Error")
                     print("###############################################################")
-                
-                # raise AnalysisError("ADFLOW Solver Fatal Fail")
-
-                if self.fatal_fail_count >= 4:
-                    if self.comm.rank == 0:
-                        print("# Terminating optimization after 4 fatal failures.")
-                        print("###############################################################")
-                    raise ValueError("ADFLOW Solver Fatal Fail - terminating after 4 fatal failures")
-                    # exit(1)
+                self.comm.Barrier()
+                # Raise immediately so the `solveFailed` branch below doesn't ALSO fire
+                # and write a duplicate `<ap.name>_analysis_fail_*.cgns`. ADflow has
+                # already written its own `failed_mesh_*.cgns` from the warp step.
+                raise AnalysisError("ADFLOW Solver Fatal Fail")
 
             if ap.solveFailed:
                 if self.restart_failed_analysis:  # the mesh was fine, but it didn't converge
